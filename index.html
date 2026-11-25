@@ -31,7 +31,7 @@
       position: sticky;
       top: 0;
       z-index: 30;
-      background: rgba(15, 13, 12, 0.94);
+      background: rgba(15, 13, 12, 0.96);
       backdrop-filter: blur(10px);
       border-bottom: 1px solid var(--border);
       padding: 10px 14px;
@@ -60,7 +60,7 @@
     button.danger { background: rgba(220, 38, 38, 0.2); border-color: var(--danger); color: #fecaca; }
     button.ok { background: rgba(22, 163, 74, 0.2); border-color: var(--ok); color: #bbf7d0; }
 
-    .container { max-width: 1180px; margin: 0 auto; padding: 16px 14px 90px; }
+    .container { max-width: 1180px; margin: 0 auto; padding: 16px 14px 95px; }
     .hero {
       background: linear-gradient(135deg, #271911, #171311);
       border: 1px solid var(--border);
@@ -124,7 +124,13 @@
       padding: 14px;
       margin-bottom: 14px;
     }
-    .table-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+    .table-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)); gap: 10px; }
+    .table-card {
+      background: var(--card-2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px;
+    }
     .qr-card {
       background: #fff;
       color: #111;
@@ -214,12 +220,12 @@
     </div>
   </div>
 
-  <!-- OWNER LOGIN MODAL / SECTION -->
+  <!-- OWNER LOGIN -->
   <section id="ownerLoginBox" class="container hidden">
     <div class="panel-box" style="max-width: 420px; margin: 30px auto;">
       <h3 style="margin-top: 0;">Owner Panel Login</h3>
       <p class="muted">Enter Owner PIN to manage 12 Tables, Orders, Menu Rates &amp; Stock.</p>
-      <input id="pinInput" type="password" placeholder="Enter PIN" style="width: 100%; margin-bottom: 10px;" />
+      <input id="pinInput" type="password" inputmode="numeric" placeholder="Enter PIN (e.g. 2460)" style="width: 100%; margin-bottom: 10px;" onkeydown="if(event.key==='Enter') verifyPin()" />
       <div class="nav-group">
         <button class="primary" onclick="verifyPin()">Unlock Owner Panel</button>
         <button onclick="switchView('customer')">Back to Menu</button>
@@ -237,6 +243,7 @@
           <div class="muted">WhatsApp Dispatch: 7990459150 • Wi-Fi: Amdawadi@2460</div>
         </div>
         <div class="nav-group">
+          <button onclick="resetMenuDefaults()">Reset Menu</button>
           <button onclick="lockOwner()">Lock Panel</button>
         </div>
       </div>
@@ -262,10 +269,10 @@
       <div class="row-between no-print" style="flex-wrap: wrap; margin-bottom: 10px;">
         <div>
           <h3 style="margin: 0;">12 Real Scannable QR Codes (Table 01 – Table 12)</h3>
-          <div class="muted">Enter your live hosted URL (e.g. https://username.github.io/amdavadi-tawa-fry/)</div>
+          <div class="muted">Enter your live hosted URL (e.g. https://musbbira00-droid.github.io/Amdavadi-Tawa-fry-/)</div>
         </div>
         <div class="nav-group">
-          <input id="baseUrlInput" type="url" placeholder="https://your-live-link.com/" style="min-width: 240px;" oninput="generateAllQRs()" />
+          <input id="baseUrlInput" type="url" placeholder="https://musbbira00-droid.github.io/Amdavadi-Tawa-fry-/" style="min-width: 240px;" oninput="generateAllQRs()" />
           <button class="primary" onclick="window.print()">Print 12 QRs</button>
         </div>
       </div>
@@ -277,6 +284,9 @@
     const OWNER_WHATSAPP = "917990459150";
     const OWNER_PIN = "2460";
     const WIFI_PASS = "Amdawadi@2460";
+    const STORAGE_KEY_MENU = "atf_menu_v1";
+    const STORAGE_KEY_ORDERS = "atf_orders_v1";
+    const STORAGE_KEY_TABLES = "atf_tables_v1";
 
     const INITIAL_MENU = [
       // SPECIAL DISHES – SIZZLER
@@ -386,4 +396,445 @@
       { id: 96, cat: "MUGHLAY ITEM", name: "Green Chicken (Boneless)", price: 270, soldOut: false },
       // SPE. MUGHLAY ITEM
       { id: 97, cat: "SPE. MUGHLAY ITEM", name: "Chicken Laziz Boneless", price: 340, soldOut: false },
-      { id: 98, cat: "SPE. MUGHLAY ITEM", name: "Muskan Chicken Boneless", price: 320, soldOut:
+      { id: 98, cat: "SPE. MUGHLAY ITEM", name: "Muskan Chicken Boneless", price: 320, soldOut: false },
+      { id: 99, cat: "SPE. MUGHLAY ITEM", name: "Chicken Gotala", price: 290, soldOut: false },
+      { id: 100, cat: "SPE. MUGHLAY ITEM", name: "Chicken Biryani / Rice", price: 220, soldOut: false }
+    ];
+
+    let menuData = loadJson(STORAGE_KEY_MENU, INITIAL_MENU);
+    let ordersData = loadJson(STORAGE_KEY_ORDERS, []);
+    let tableStatuses = loadJson(STORAGE_KEY_TABLES, Array.from({ length: 12 }, () => "Available"));
+    let selectedCategory = "ALL";
+    let cart = {};
+    let ownerUnlocked = false;
+    let currentTable = getTableFromUrl();
+
+    function loadJson(key, fallback) {
+      try {
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : structuredClone(fallback);
+      } catch (e) {
+        return structuredClone(fallback);
+      }
+    }
+
+    function saveState() {
+      try {
+        localStorage.setItem(STORAGE_KEY_MENU, JSON.stringify(menuData));
+        localStorage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(ordersData));
+        localStorage.setItem(STORAGE_KEY_TABLES, JSON.stringify(tableStatuses));
+      } catch (e) {}
+    }
+
+    function getTableFromUrl() {
+      const params = new URLSearchParams(window.location.search);
+      const t = parseInt(params.get("table") || "1", 10);
+      return (t >= 1 && t <= 12) ? t : 1;
+    }
+
+    function formatTable(num) {
+      return "Table " + String(num).padStart(2, "0");
+    }
+
+    function initTableSelect() {
+      const sel = document.getElementById("tableSelect");
+      sel.innerHTML = "";
+      for (let i = 1; i <= 12; i++) {
+        const opt = document.createElement("option");
+        opt.value = i;
+        opt.textContent = formatTable(i);
+        if (i === currentTable) opt.selected = true;
+        sel.appendChild(opt);
+      }
+      document.getElementById("tableBadge").textContent = formatTable(currentTable);
+    }
+
+    function changeTable(val) {
+      currentTable = parseInt(val, 10) || 1;
+      document.getElementById("tableBadge").textContent = formatTable(currentTable);
+    }
+
+    function switchView(view) {
+      const customerEl = document.getElementById("customerView");
+      const cartBarEl = document.getElementById("cartBar");
+      const loginEl = document.getElementById("ownerLoginBox");
+      const ownerEl = document.getElementById("ownerView");
+      const btnCust = document.getElementById("btnCustomerView");
+      const btnOwn = document.getElementById("btnOwnerView");
+
+      customerEl.classList.add("hidden");
+      cartBarEl.classList.add("hidden");
+      loginEl.classList.add("hidden");
+      ownerEl.classList.add("hidden");
+      btnCust.classList.remove("active");
+      btnOwn.classList.remove("active");
+
+      if (view === "customer") {
+        customerEl.classList.remove("hidden");
+        cartBarEl.classList.remove("hidden");
+        btnCust.classList.add("active");
+        renderMenu();
+        renderCart();
+      } else if (view === "ownerLogin") {
+        loginEl.classList.remove("hidden");
+        btnOwn.classList.add("active");
+        document.getElementById("pinError").textContent = "";
+        const pinInput = document.getElementById("pinInput");
+        pinInput.value = "";
+        setTimeout(() => pinInput.focus(), 50);
+      } else if (view === "owner") {
+        ownerEl.classList.remove("hidden");
+        btnOwn.classList.add("active");
+        renderOwnerDashboard();
+      }
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function openOwnerLogin() {
+      if (ownerUnlocked) {
+        switchView("owner");
+      } else {
+        switchView("ownerLogin");
+      }
+    }
+
+    function verifyPin() {
+      const entered = (document.getElementById("pinInput").value || "").trim();
+      const errEl = document.getElementById("pinError");
+      if (entered === OWNER_PIN) {
+        ownerUnlocked = true;
+        errEl.textContent = "";
+        switchView("owner");
+      } else {
+        errEl.textContent = "Galat PIN! Kripya sahi Owner PIN darj karein.";
+      }
+    }
+
+    function lockOwner() {
+      ownerUnlocked = false;
+      switchView("customer");
+    }
+
+    function renderCategories() {
+      const bar = document.getElementById("categoryBar");
+      const cats = ["ALL", ...new Set(menuData.map(item => item.cat))];
+      bar.innerHTML = "";
+      cats.forEach(cat => {
+        const btn = document.createElement("button");
+        btn.textContent = cat === "ALL" ? "All Dishes" : cat;
+        if (selectedCategory === cat) btn.classList.add("active");
+        btn.onclick = () => {
+          selectedCategory = cat;
+          renderCategories();
+          renderMenu();
+        };
+        bar.appendChild(btn);
+      });
+    }
+
+    function renderMenu() {
+      const query = (document.getElementById("searchInput").value || "").trim().toLowerCase();
+      const grid = document.getElementById("menuGrid");
+      grid.innerHTML = "";
+
+      const filtered = menuData.filter(item => {
+        const matchCat = selectedCategory === "ALL" || item.cat === selectedCategory;
+        const matchText = !query || item.name.toLowerCase().includes(query) || item.cat.toLowerCase().includes(query);
+        return matchCat && matchText;
+      });
+
+      if (!filtered.length) {
+        grid.innerHTML = `<div class="muted">Koi dish nahi mili.</div>`;
+        return;
+      }
+
+      filtered.forEach(item => {
+        const qty = cart[item.id] || 0;
+        const card = document.createElement("div");
+        card.className = "card" + (item.soldOut ? " soldout" : "");
+        card.innerHTML = `
+          <div>
+            <div class="muted" style="font-size:0.72rem; margin-bottom:4px;">${item.cat}</div>
+            <div class="row-between">
+              <strong>${item.name}</strong>
+              <span class="price">₹${item.price}</span>
+            </div>
+          </div>
+          <div class="row-between" style="align-items:center;">
+            ${item.soldOut
+              ? `<span class="badge-sold">Sold Out</span>`
+              : `<div class="nav-group">
+                   <button onclick="updateQty(${item.id}, -1)">-</button>
+                   <span style="min-width:22px; text-align:center; font-weight:700;">${qty}</span>
+                   <button class="primary" onclick="updateQty(${item.id}, 1)">+</button>
+                 </div>`
+            }
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    function updateQty(id, delta) {
+      const item = menuData.find(m => m.id === id);
+      if (!item || item.soldOut) return;
+      const next = (cart[id] || 0) + delta;
+      if (next <= 0) {
+        delete cart[id];
+      } else {
+        cart[id] = next;
+      }
+      renderMenu();
+      renderCart();
+    }
+
+    function clearCart() {
+      cart = {};
+      document.getElementById("orderNote").value = "";
+      renderMenu();
+      renderCart();
+    }
+
+    function renderCart() {
+      let totalItems = 0;
+      let totalAmt = 0;
+      const parts = [];
+
+      Object.entries(cart).forEach(([id, qty]) => {
+        const item = menuData.find(m => m.id === parseInt(id, 10));
+        if (item && qty > 0) {
+          totalItems += qty;
+          totalAmt += item.price * qty;
+          parts.push(`${item.name} x${qty}`);
+        }
+      });
+
+      document.getElementById("cartSummary").textContent = `${totalItems} items • ₹${totalAmt}`;
+      document.getElementById("cartItemsPreview").textContent = parts.length
+        ? parts.join(", ")
+        : "Add items from menu to order on WhatsApp (7990459150)";
+    }
+
+    function placeOrder() {
+      const entries = Object.entries(cart);
+      if (!entries.length) {
+        alert("Pehle menu me se koi dish add karein.");
+        return;
+      }
+
+      const note = (document.getElementById("orderNote").value || "").trim();
+      const tableLabel = formatTable(currentTable);
+      let totalAmt = 0;
+      const lines = [];
+
+      entries.forEach(([id, qty]) => {
+        const item = menuData.find(m => m.id === parseInt(id, 10));
+        if (item && qty > 0) {
+          const lineTotal = item.price * qty;
+          totalAmt += lineTotal;
+          lines.push(`• ${item.name} x${qty} = ₹${lineTotal}`);
+        }
+      });
+
+      const summaryText = `${tableLabel} | Total: ₹${totalAmt} | ${lines.join(", ")}${note ? " | Note: " + note : ""}`;
+      ordersData.unshift({
+        time: new Date().toLocaleTimeString(),
+        text: summaryText
+      });
+      tableStatuses[currentTable - 1] = "Occupied";
+      saveState();
+
+      const statusBox = document.getElementById("orderStatusBox");
+      statusBox.classList.remove("hidden");
+      document.getElementById("orderStatusText").textContent = summaryText;
+
+      const waMsg = encodeURIComponent(
+        `🍽️ *Amdavadi Tawa Fry — ${tableLabel}*\n\n` +
+        lines.join("\n") +
+        `\n\n💰 *Total: ₹${totalAmt}*` +
+        (note ? `\n📝 *Note:* ${note}` : "")
+      );
+      window.open(`https://wa.me/${OWNER_WHATSAPP}?text=${waMsg}`, "_blank");
+    }
+
+    function callService(serviceName) {
+      const tableLabel = formatTable(currentTable);
+      const alertText = `${tableLabel} — ${serviceName}`;
+      ordersData.unshift({
+        time: new Date().toLocaleTimeString(),
+        text: alertText
+      });
+      if (serviceName === "Request Bill") {
+        tableStatuses[currentTable - 1] = "Bill Requested";
+      } else {
+        tableStatuses[currentTable - 1] = "Occupied";
+      }
+      saveState();
+
+      const statusBox = document.getElementById("orderStatusBox");
+      statusBox.classList.remove("hidden");
+      document.getElementById("orderStatusText").textContent = `${alertText} (Recorded)`;
+
+      const waMsg = encodeURIComponent(`🔔 *Amdavadi Tawa Fry*\n${tableLabel}: *${serviceName}*`);
+      window.open(`https://wa.me/${OWNER_WHATSAPP}?text=${waMsg}`, "_blank");
+    }
+
+    function showWifi() {
+      alert(`📶 Free Wi-Fi\nPassword: ${WIFI_PASS}`);
+    }
+
+    function renderOwnerDashboard() {
+      renderTablesGrid();
+      renderOwnerOrders();
+      renderOwnerMenu();
+      initBaseUrlInput();
+      generateAllQRs();
+    }
+
+    function renderTablesGrid() {
+      const grid = document.getElementById("tablesGrid");
+      grid.innerHTML = "";
+      const states = ["Available", "Occupied", "Bill Requested"];
+
+      for (let i = 0; i < 12; i++) {
+        const st = tableStatuses[i] || "Available";
+        const box = document.createElement("div");
+        box.className = "table-card";
+        box.innerHTML = `
+          <div class="row-between" style="margin-bottom:8px;">
+            <strong>${formatTable(i + 1)}</strong>
+            <span class="pill">${st}</span>
+          </div>
+          <div class="nav-group">
+            ${states.map(s => `
+              <button class="${st === s ? "active" : ""}" style="padding:4px 8px; font-size:0.75rem;" onclick="setTableStatus(${i}, '${s}')">${s.split(" ")[0]}</button>
+            `).join("")}
+          </div>
+        `;
+        grid.appendChild(box);
+      }
+    }
+
+    function setTableStatus(index, status) {
+      tableStatuses[index] = status;
+      saveState();
+      renderTablesGrid();
+    }
+
+    function renderOwnerOrders() {
+      const el = document.getElementById("ownerOrdersList");
+      if (!ordersData.length) {
+        el.innerHTML = `<div class="muted">No orders yet in this session.</div>`;
+        return;
+      }
+      el.innerHTML = ordersData.map(o => `
+        <div style="padding:8px 0; border-bottom:1px solid var(--border);">
+          <span class="muted">[${o.time}]</span> <strong>${o.text}</strong>
+        </div>
+      `).join("");
+    }
+
+    function renderOwnerMenu() {
+      const q = (document.getElementById("ownerSearch").value || "").trim().toLowerCase();
+      const wrap = document.getElementById("ownerMenuList");
+      wrap.innerHTML = "";
+
+      const list = menuData.filter(m => !q || m.name.toLowerCase().includes(q) || m.cat.toLowerCase().includes(q));
+      list.forEach(item => {
+        const card = document.createElement("div");
+        card.className = "card";
+        card.innerHTML = `
+          <div>
+            <strong>${item.name}</strong>
+            <div class="muted">${item.cat}</div>
+          </div>
+          <div class="nav-group">
+            <input type="number" value="${item.price}" style="width:85px;" onchange="updateItemPrice(${item.id}, this.value)" />
+            <button class="${item.soldOut ? "danger" : "ok"}" onclick="toggleSoldOut(${item.id})">
+              ${item.soldOut ? "Sold Out" : "In Stock"}
+            </button>
+          </div>
+        `;
+        wrap.appendChild(card);
+      });
+    }
+
+    function updateItemPrice(id, val) {
+      const price = parseInt(val, 10);
+      if (!isNaN(price) && price >= 0) {
+        const item = menuData.find(m => m.id === id);
+        if (item) {
+          item.price = price;
+          saveState();
+        }
+      }
+    }
+
+    function toggleSoldOut(id) {
+      const item = menuData.find(m => m.id === id);
+      if (item) {
+        item.soldOut = !item.soldOut;
+        saveState();
+        renderOwnerMenu();
+      }
+    }
+
+    function resetMenuDefaults() {
+      if (!confirm("Kya aap menu rates aur stock ko default par reset karna chahte hain?")) return;
+      menuData = structuredClone(INITIAL_MENU);
+      saveState();
+      renderOwnerMenu();
+    }
+
+    function initBaseUrlInput() {
+      const input = document.getElementById("baseUrlInput");
+      if (!input.value) {
+        const cleanHref = window.location.origin + window.location.pathname;
+        input.value = cleanHref.endsWith("/") ? cleanHref : cleanHref + "/";
+      }
+    }
+
+    function generateAllQRs() {
+      const grid = document.getElementById("qrGrid");
+      const rawUrl = (document.getElementById("baseUrlInput").value || "").trim();
+      const base = rawUrl ? (rawUrl.endsWith("/") ? rawUrl : rawUrl + "/") : "https://musbbira00-droid.github.io/Amdavadi-Tawa-fry-/";
+
+      grid.innerHTML = "";
+      for (let i = 1; i <= 12; i++) {
+        const tableUrl = `${base}?table=${i}`;
+        const card = document.createElement("div");
+        card.className = "qr-card";
+
+        const qrHolder = document.createElement("div");
+        const title = document.createElement("div");
+        title.style.fontWeight = "800";
+        title.textContent = `AMDAVADI TAWA FRY — ${formatTable(i)}`;
+
+        const sub = document.createElement("div");
+        sub.style.fontSize = "0.72rem";
+        sub.style.wordBreak = "break-all";
+        sub.style.color = "#444";
+        sub.textContent = tableUrl;
+
+        card.appendChild(qrHolder);
+        card.appendChild(title);
+        card.appendChild(sub);
+        grid.appendChild(card);
+
+        if (typeof QRCode !== "undefined") {
+          new QRCode(qrHolder, {
+            text: tableUrl,
+            width: 132,
+            height: 132
+          });
+        }
+      }
+    }
+
+    initTableSelect();
+    renderCategories();
+    renderMenu();
+    renderCart();
+  </script>
+</body>
+</html>
