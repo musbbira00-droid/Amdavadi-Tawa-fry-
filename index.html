@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Amdavadi Tawa Fry — Smart QR Menu & Owner Panel</title>
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f0d0c;
+      --card: #191513;
+      --card-2: #231d1a;
+      --text: #fff8f2;
+      --muted: #b8a89a;
+      --accent: #f59e0b;
+      --accent-2: #ea580c;
+      --ok: #16a34a;
+      --warn: #eab308;
+      --danger: #dc2626;
+      --border: rgba(255, 255, 255, 0.1);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+    }
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      background: rgba(15, 13, 12, 0.94);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 14px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .brand-title { font-weight: 800; font-size: 1rem; color: var(--accent); }
+    .brand-sub { font-size: 0.78rem; color: var(--muted); }
+    .nav-group { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    button, input, select {
+      font-family: inherit;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--card-2);
+      color: var(--text);
+      padding: 8px 12px;
+      font-size: 0.88rem;
+    }
+    button { cursor: pointer; font-weight: 600; transition: 0.15s; }
+    button:hover { border-color: var(--accent); }
+    button.primary { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #111; border: none; }
+    button.active { background: var(--accent); color: #111; border-color: var(--accent); }
+    button.danger { background: rgba(220, 38, 38, 0.2); border-color: var(--danger); color: #fecaca; }
+    button.ok { background: rgba(22, 163, 74, 0.2); border-color: var(--ok); color: #bbf7d0; }
+
+    .container { max-width: 1180px; margin: 0 auto; padding: 16px 14px 90px; }
+    .hero {
+      background: linear-gradient(135deg, #271911, #171311);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 14px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--card-2);
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+    }
+    .cats { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 14px; }
+    .cats button { white-space: nowrap; border-radius: 999px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .card.soldout { opacity: 0.55; }
+    .row-between { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+    .price { color: var(--accent); font-weight: 800; white-space: nowrap; }
+    .muted { color: var(--muted); font-size: 0.82rem; }
+    .badge-sold { background: rgba(220, 38, 38, 0.25); color: #fca5a5; padding: 2px 8px; border-radius: 999px; font-size: 0.75rem; }
+
+    .cart-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 25;
+      background: #1b1512;
+      border-top: 1px solid var(--border);
+      padding: 10px 14px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .panel-box {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+    .table-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+    .qr-card {
+      background: #fff;
+      color: #111;
+      border-radius: 12px;
+      padding: 12px;
+      text-align: center;
+    }
+    .qr-card > div:first-child { display: flex; justify-content: center; margin: 8px auto; }
+    .note-box {
+      background: rgba(245, 158, 11, 0.08);
+      border: 1px solid rgba(245, 158, 11, 0.25);
+      border-radius: 12px;
+      padding: 12px;
+      margin-top: 16px;
+      font-size: 0.85rem;
+    }
+    .hidden { display: none !important; }
+    @media print {
+      .topbar, .cart-bar, .no-print { display: none !important; }
+      body { background: #fff; color: #000; }
+      .qr-card { border: 1px solid #ccc; break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <div class="brand-title">AMDAVADI TAWA FRY</div>
+      <div class="brand-sub">Order Call: 7990459150 / 7228027998 • IG: @AMDAVADI_TAWA_FRYY</div>
+    </div>
+    <div class="nav-group no-print">
+      <button id="btnCustomerView" class="active" onclick="switchView('customer')">Customer Menu</button>
+      <button id="btnOwnerView" onclick="openOwnerLogin()">Owner Panel (PIN)</button>
+    </div>
+  </header>
+
+  <!-- CUSTOMER VIEW -->
+  <main id="customerView" class="container">
+    <section class="hero">
+      <div>
+        <div class="pill" id="tableBadge">Table 01</div>
+        <h2 style="margin: 8px 0 4px;">Amdavadi Tawa Fry — Digital Menu</h2>
+        <div class="muted">Freshly prepared • After Giving Order Wait For 20 Minutes</div>
+      </div>
+      <div class="nav-group">
+        <label class="muted" for="tableSelect">Table:</label>
+        <select id="tableSelect" onchange="changeTable(this.value)"></select>
+        <button onclick="callService('Call Waiter')">Call Waiter</button>
+        <button onclick="callService('Request Bill')">Request Bill</button>
+        <button onclick="showWifi()">Free Wi-Fi</button>
+      </div>
+    </section>
+
+    <div class="nav-group" style="margin-bottom: 12px;">
+      <input id="searchInput" type="search" placeholder="Search dish (e.g. Chingari, Tikka, Gotala, Rice)..." style="flex: 1; min-width: 220px;" oninput="renderMenu()" />
+    </div>
+
+    <div id="categoryBar" class="cats"></div>
+    <div id="menuGrid" class="grid"></div>
+
+    <section id="orderStatusBox" class="panel-box hidden" style="margin-top: 16px;">
+      <strong>Latest Order Status:</strong>
+      <div id="orderStatusText" class="muted" style="margin-top: 4px;"></div>
+    </section>
+
+    <section class="note-box">
+      <strong>RESTAURANT NOTE:</strong>
+      <ul style="margin: 6px 0 0; padding-left: 18px;">
+        <li>After Giving Order Wait For 20 Minutes</li>
+        <li>All Complain Should Be Done on The Counter</li>
+        <li>Do Not Argue with Staff</li>
+        <li>Out Side Food &amp; Any Kind of Alcohol is Not Allowed</li>
+      </ul>
+    </section>
+  </main>
+
+  <!-- CART BAR -->
+  <div id="cartBar" class="cart-bar">
+    <div>
+      <strong id="cartSummary">0 items • ₹0</strong>
+      <div class="muted" id="cartItemsPreview">Add items from menu to order on WhatsApp (7990459150)</div>
+    </div>
+    <div class="nav-group">
+      <input id="orderNote" type="text" placeholder="Spice / Note (optional)" style="width: 170px;" />
+      <button onclick="clearCart()">Clear</button>
+      <button class="primary" onclick="placeOrder()">Send Order on WhatsApp</button>
+    </div>
+  </div>
+
+  <!-- OWNER LOGIN MODAL / SECTION -->
+  <section id="ownerLoginBox" class="container hidden">
+    <div class="panel-box" style="max-width: 420px; margin: 30px auto;">
+      <h3 style="margin-top: 0;">Owner Panel Login</h3>
+      <p class="muted">Enter Owner PIN to manage 12 Tables, Orders, Menu Rates &amp; Stock.</p>
+      <input id="pinInput" type="password" placeholder="Enter PIN" style="width: 100%; margin-bottom: 10px;" />
+      <div class="nav-group">
+        <button class="primary" onclick="verifyPin()">Unlock Owner Panel</button>
+        <button onclick="switchView('customer')">Back to Menu</button>
+      </div>
+      <div id="pinError" class="muted" style="color: #fca5a5; margin-top: 8px;"></div>
+    </div>
+  </section>
+
+  <!-- OWNER DASHBOARD -->
+  <section id="ownerView" class="container hidden">
+    <div class="panel-box">
+      <div class="row-between" style="flex-wrap: wrap;">
+        <div>
+          <h2 style="margin: 0;">Owner Control Panel — Amdavadi Tawa Fry</h2>
+          <div class="muted">WhatsApp Dispatch: 7990459150 • Wi-Fi: Amdawadi@2460</div>
+        </div>
+        <div class="nav-group">
+          <button onclick="lockOwner()">Lock Panel</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-box">
+      <h3 style="margin-top: 0;">12 Tables Live Status</h3>
+      <div id="tablesGrid" class="table-grid"></div>
+    </div>
+
+    <div class="panel-box">
+      <h3 style="margin-top: 0;">Live Orders &amp; Service Alerts</h3>
+      <div id="ownerOrdersList" class="muted">No orders yet in this session.</div>
+    </div>
+
+    <div class="panel-box">
+      <h3 style="margin-top: 0;">Menu Price &amp; Sold Out Control</h3>
+      <input id="ownerSearch" type="search" placeholder="Filter menu item to edit price or Sold Out..." style="width: 100%; max-width: 340px; margin-bottom: 10px;" oninput="renderOwnerMenu()" />
+      <div id="ownerMenuList" class="grid"></div>
+    </div>
+
+    <div class="panel-box">
+      <div class="row-between no-print" style="flex-wrap: wrap; margin-bottom: 10px;">
+        <div>
+          <h3 style="margin: 0;">12 Real Scannable QR Codes (Table 01 – Table 12)</h3>
+          <div class="muted">Enter your live hosted URL (e.g. https://username.github.io/amdavadi-tawa-fry/)</div>
+        </div>
+        <div class="nav-group">
+          <input id="baseUrlInput" type="url" placeholder="https://your-live-link.com/" style="min-width: 240px;" oninput="generateAllQRs()" />
+          <button class="primary" onclick="window.print()">Print 12 QRs</button>
+        </div>
+      </div>
+      <div id="qrGrid" class="grid"></div>
+    </div>
+  </section>
+
+  <script>
+    const OWNER_WHATSAPP = "917990459150";
+    const OWNER_PIN = "2460";
+    const WIFI_PASS = "Amdawadi@2460";
+
+    const INITIAL_MENU = [
+      // SPECIAL DISHES – SIZZLER
+      { id: 1, cat: "SPECIAL DISHES – SIZZLER", name: "Chicken Makhmali Kabab", price: 400, soldOut: false },
+      { id: 2, cat: "SPECIAL DISHES – SIZZLER", name: "Chicken Chicago Tikka", price: 400, soldOut: false },
+      { id: 3, cat: "SPECIAL DISHES – SIZZLER", name: "Chicken Nawabi Tikka", price: 399, soldOut: false },
+      { id: 4, cat: "SPECIAL DISHES – SIZZLER", name: "Nargisi Tikka", price: 560, soldOut: false },
+      { id: 5, cat: "SPECIAL DISHES – SIZZLER", name: "Chilli Mirchi Tikka", price: 380, soldOut: false },
+      // GRAVY ITEMS
+      { id: 6, cat: "GRAVY ITEMS", name: "Chaska Mas Ka Chicken", price: 530, soldOut: false },
+      { id: 7, cat: "GRAVY ITEMS", name: "Chicken Amrine", price: 530, soldOut: false },
+      { id: 8, cat: "GRAVY ITEMS", name: "Chingari Bone", price: 320, soldOut: false },
+      { id: 9, cat: "GRAVY ITEMS", name: "Chingari Boneless (Half)", price: 400, soldOut: false },
+      { id: 10, cat: "GRAVY ITEMS", name: "Chingari Boneless (Full)", price: 800, soldOut: false },
+      // TANDOORI ITEM
+      { id: 11, cat: "TANDOORI ITEM", name: "Leg", price: 130, soldOut: false },
+      { id: 12, cat: "TANDOORI ITEM", name: "Sina", price: 150, soldOut: false },
+      { id: 13, cat: "TANDOORI ITEM", name: "Spe. Chest", price: 190, soldOut: false },
+      { id: 14, cat: "TANDOORI ITEM", name: "Spe. Leg", price: 180, soldOut: false },
+      { id: 15, cat: "TANDOORI ITEM", name: "Cheese Leg", price: 170, soldOut: false },
+      { id: 16, cat: "TANDOORI ITEM", name: "Cheese Chest", price: 180, soldOut: false },
+      { id: 17, cat: "TANDOORI ITEM", name: "Butter Leg", price: 140, soldOut: false },
+      { id: 18, cat: "TANDOORI ITEM", name: "Butter Chest", price: 160, soldOut: false },
+      { id: 19, cat: "TANDOORI ITEM", name: "Tangadi Kabab Half", price: 190, soldOut: false },
+      { id: 20, cat: "TANDOORI ITEM", name: "Tangadi Kabab Full", price: 340, soldOut: false },
+      { id: 21, cat: "TANDOORI ITEM", name: "Spe. Tangadi Kabab Half", price: 240, soldOut: false },
+      { id: 22, cat: "TANDOORI ITEM", name: "Spe. Tangadi Kabab Full", price: 440, soldOut: false },
+      { id: 23, cat: "TANDOORI ITEM", name: "Pathani Half", price: 240, soldOut: false },
+      { id: 24, cat: "TANDOORI ITEM", name: "Pathani Full", price: 480, soldOut: false },
+      { id: 25, cat: "TANDOORI ITEM", name: "Spe. Pathani Half", price: 320, soldOut: false },
+      { id: 26, cat: "TANDOORI ITEM", name: "Spe. Pathani Full", price: 640, soldOut: false },
+      { id: 27, cat: "TANDOORI ITEM", name: "Kali Mari Leg", price: 140, soldOut: false },
+      { id: 28, cat: "TANDOORI ITEM", name: "Spe. Kali Mari Leg", price: 180, soldOut: false },
+      { id: 29, cat: "TANDOORI ITEM", name: "Chicken Manna (250 Gm)", price: 140, soldOut: false },
+      { id: 30, cat: "TANDOORI ITEM", name: "Pahadi Half", price: 240, soldOut: false },
+      { id: 31, cat: "TANDOORI ITEM", name: "Pahadi Full", price: 480, soldOut: false },
+      // TIKKA ITEM
+      { id: 32, cat: "TIKKA ITEM", name: "Tanduri Tikka 6 Ps. Boneless", price: 250, soldOut: false },
+      { id: 33, cat: "TIKKA ITEM", name: "Lasaniya Tikka", price: 250, soldOut: false },
+      { id: 34, cat: "TIKKA ITEM", name: "Golden Tikka", price: 260, soldOut: false },
+      // SPECIAL TIKKA
+      { id: 35, cat: "SPECIAL TIKKA", name: "Spe. Malai Tikka", price: 290, soldOut: false },
+      { id: 36, cat: "SPECIAL TIKKA", name: "Spe. Lasaniya Tikka", price: 310, soldOut: false },
+      { id: 37, cat: "SPECIAL TIKKA", name: "Spe. Golden Tikka", price: 290, soldOut: false },
+      { id: 38, cat: "SPECIAL TIKKA", name: "Spe. Rajwadi Tikka", price: 310, soldOut: false },
+      { id: 39, cat: "SPECIAL TIKKA", name: "Spe. Zafrani Tikka", price: 310, soldOut: false },
+      // DIP FRY
+      { id: 40, cat: "DIP FRY", name: "Chicken Dana", price: 140, soldOut: false },
+      { id: 41, cat: "DIP FRY", name: "Chicken 65", price: 150, soldOut: false },
+      { id: 42, cat: "DIP FRY", name: "Chicken Lollypop 6 Pcs", price: 220, soldOut: false },
+      // TAWA FRY
+      { id: 43, cat: "TAWA FRY", name: "Tawa Fry", price: 190, soldOut: false },
+      { id: 44, cat: "TAWA FRY", name: "Amdavadi Tawa Fry", price: 220, soldOut: false },
+      { id: 45, cat: "TAWA FRY", name: "Chicken Mahachi Masala", price: 220, soldOut: false },
+      { id: 46, cat: "TAWA FRY", name: "Chicken Tikka Masala", price: 220, soldOut: false },
+      { id: 47, cat: "TAWA FRY", name: "Chicken Bhuna", price: 280, soldOut: false },
+      { id: 48, cat: "TAWA FRY", name: "Chicken Patiala", price: 240, soldOut: false },
+      { id: 49, cat: "TAWA FRY", name: "Chicken Alghani", price: 260, soldOut: false },
+      { id: 50, cat: "TAWA FRY", name: "Chicken Paplet", price: 250, soldOut: false },
+      { id: 51, cat: "TAWA FRY", name: "Chicken Bombay Tawa Fry", price: 240, soldOut: false },
+      { id: 52, cat: "TAWA FRY", name: "Kaleji Fry", price: 260, soldOut: false },
+      { id: 53, cat: "TAWA FRY", name: "Kaleji Masala", price: 190, soldOut: false },
+      { id: 54, cat: "TAWA FRY", name: "Chicken Mamna Gravy", price: 280, soldOut: false },
+      { id: 55, cat: "TAWA FRY", name: "Chicken Rose Garden", price: 280, soldOut: false },
+      { id: 56, cat: "TAWA FRY", name: "Chicken Toolani", price: 260, soldOut: false },
+      { id: 57, cat: "TAWA FRY", name: "Chicken Ginger", price: 260, soldOut: false },
+      { id: 58, cat: "TAWA FRY", name: "Spe. Tikka Masala", price: 250, soldOut: false },
+      { id: 59, cat: "TAWA FRY", name: "Spe. Paplet Chicken", price: 240, soldOut: false },
+      { id: 60, cat: "TAWA FRY", name: "Spe. Lava Chicken", price: 280, soldOut: false },
+      { id: 61, cat: "TAWA FRY", name: "Spe. Lasaniya Gravy", price: 290, soldOut: false },
+      { id: 62, cat: "TAWA FRY", name: "Spe. Golden Gravy", price: 280, soldOut: false },
+      { id: 63, cat: "TAWA FRY", name: "Spe. Dilkhush", price: 320, soldOut: false },
+      { id: 64, cat: "TAWA FRY", name: "Chicken Cream Paplet", price: 270, soldOut: false },
+      // MUTTON ITEM
+      { id: 65, cat: "MUTTON ITEM", name: "Mutton Bheja Fry", price: 260, soldOut: false },
+      { id: 66, cat: "MUTTON ITEM", name: "Mutton Bheja Masala", price: 280, soldOut: false },
+      { id: 67, cat: "MUTTON ITEM", name: "Mutton Lasaniya Bheja", price: 270, soldOut: false },
+      { id: 68, cat: "MUTTON ITEM", name: "Mutton Chap", price: 280, soldOut: false },
+      { id: 69, cat: "MUTTON ITEM", name: "Mutton Masala", price: 280, soldOut: false },
+      { id: 70, cat: "MUTTON ITEM", name: "Mutton Bhuna", price: 280, soldOut: false },
+      // MUGHLAY ITEM
+      { id: 71, cat: "MUGHLAY ITEM", name: "Chicken Masala (Bone)", price: 220, soldOut: false },
+      { id: 72, cat: "MUGHLAY ITEM", name: "Chicken Masala (Boneless)", price: 240, soldOut: false },
+      { id: 73, cat: "MUGHLAY ITEM", name: "Butter Chicken (Bone)", price: 240, soldOut: false },
+      { id: 74, cat: "MUGHLAY ITEM", name: "Butter Chicken (Boneless)", price: 260, soldOut: false },
+      { id: 75, cat: "MUGHLAY ITEM", name: "Chicken Kadhai (Bone)", price: 230, soldOut: false },
+      { id: 76, cat: "MUGHLAY ITEM", name: "Chicken Kadhai (Boneless)", price: 250, soldOut: false },
+      { id: 77, cat: "MUGHLAY ITEM", name: "Chicken Handi (Bone)", price: 230, soldOut: false },
+      { id: 78, cat: "MUGHLAY ITEM", name: "Chicken Handi (Boneless)", price: 250, soldOut: false },
+      { id: 79, cat: "MUGHLAY ITEM", name: "Chicken Arbi (Bone)", price: 240, soldOut: false },
+      { id: 80, cat: "MUGHLAY ITEM", name: "Chicken Arbi (Boneless)", price: 260, soldOut: false },
+      { id: 81, cat: "MUGHLAY ITEM", name: "Chicken Hydrabadi (Bone)", price: 240, soldOut: false },
+      { id: 82, cat: "MUGHLAY ITEM", name: "Chicken Hydrabadi (Boneless)", price: 260, soldOut: false },
+      { id: 83, cat: "MUGHLAY ITEM", name: "Cheeze Chicken (Bone)", price: 260, soldOut: false },
+      { id: 84, cat: "MUGHLAY ITEM", name: "Cheeze Chicken (Boneless)", price: 280, soldOut: false },
+      { id: 85, cat: "MUGHLAY ITEM", name: "Chicken Achari (Bone)", price: 230, soldOut: false },
+      { id: 86, cat: "MUGHLAY ITEM", name: "Chicken Achari (Boneless)", price: 250, soldOut: false },
+      { id: 87, cat: "MUGHLAY ITEM", name: "Chicken Nowabi (Bone)", price: 240, soldOut: false },
+      { id: 88, cat: "MUGHLAY ITEM", name: "Chicken Nowabi (Boneless)", price: 260, soldOut: false },
+      { id: 89, cat: "MUGHLAY ITEM", name: "Lemon Dhaniya (Bone)", price: 230, soldOut: false },
+      { id: 90, cat: "MUGHLAY ITEM", name: "Lemon Dhaniya (Boneless)", price: 250, soldOut: false },
+      { id: 91, cat: "MUGHLAY ITEM", name: "Kashturi Chicken (Bone)", price: 230, soldOut: false },
+      { id: 92, cat: "MUGHLAY ITEM", name: "Kashturi Chicken (Boneless)", price: 250, soldOut: false },
+      { id: 93, cat: "MUGHLAY ITEM", name: "Chicken Kolhapuri Sizler (Bone)", price: 240, soldOut: false },
+      { id: 94, cat: "MUGHLAY ITEM", name: "Chicken Kolhapuri Sizler (Boneless)", price: 260, soldOut: false },
+      { id: 95, cat: "MUGHLAY ITEM", name: "Green Chicken (Bone)", price: 250, soldOut: false },
+      { id: 96, cat: "MUGHLAY ITEM", name: "Green Chicken (Boneless)", price: 270, soldOut: false },
+      // SPE. MUGHLAY ITEM
+      { id: 97, cat: "SPE. MUGHLAY ITEM", name: "Chicken Laziz Boneless", price: 340, soldOut: false },
+      { id: 98, cat: "SPE. MUGHLAY ITEM", name: "Muskan Chicken Boneless", price: 320, soldOut:
